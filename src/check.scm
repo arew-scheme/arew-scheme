@@ -1,5 +1,5 @@
 (library (check)
-  (export check check-raise check-skip run-check)
+  (export check check-raise check-skip check-values run-check)
 
   (import (chezscheme))
   (import (only (scheme base)  pk))
@@ -44,6 +44,12 @@
     (define-syntax-rule (check-skip test expected actual)
       (lambda ()
         (vector #t)))
+
+    (define-syntax-rule (check-values expected actual)
+      (check (call-with-values (lambda () expected)
+               (lambda args args))
+             (call-with-values (lambda () actual)
+               (lambda args args))))
 
     ;; how to run the test suite
 

@@ -2,7 +2,9 @@
 
   (export test-0
           test-1
-          test-2)
+          test-2
+          test-3
+          )
 
   (import (scheme base) (check))
 
@@ -14,5 +16,9 @@
 
   (define test-2
     (check-raise symbol? (raise 'oops)))
+
+  (define test-3
+    (check-values (values 0 1 2) (apply values (list 0 1 2))))
+
 
   )
