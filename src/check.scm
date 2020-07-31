@@ -71,6 +71,6 @@
           (newline)
           (let ((out (check)))
             (when (not (vector-ref out 0))
-              (display out)
+              (write out)
               (newline)
               (exit 1))))))))
