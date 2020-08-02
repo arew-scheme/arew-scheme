@@ -20,7 +20,7 @@
 ;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;;; SOFTWARE.
 
-(library (srfi :41 streams derived)
+(library (srfi srfi-41 derived)
 
   (export stream-null stream-cons stream? stream-null? stream-pair? stream-car
           stream-cdr stream-lambda define-stream list->stream port->stream stream
@@ -30,7 +30,7 @@
           stream-of stream-range stream-ref stream-reverse stream-scan stream-take
           stream-take-while stream-unfold stream-unfolds stream-zip)
 
-  (import (rnrs) (srfi :41 streams primitive))
+  (import (rnrs) (srfi srfi-41 primitive))
 
   (define-syntax define-stream
     (syntax-rules ()

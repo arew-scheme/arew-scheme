@@ -20,7 +20,7 @@
 ;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;;; SOFTWARE.
 
-(library (srfi :41 streams primitive)
+(library (srfi srfi-41 primitive)
 
   (export stream-null stream-cons stream? stream-null? stream-pair?
           stream-car stream-cdr stream-lambda)
