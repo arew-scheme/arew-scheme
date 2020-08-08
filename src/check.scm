@@ -57,7 +57,7 @@
       (case (vector-ref vector 1)
         ((unexpected-value)
          (display "*** expected: ") (write (vector-ref vector 2)) (newline)
-         (display "*** given: ") (write (vector-ref vector 3)) (newline))
+         (display "*** but have: ") (write (vector-ref vector 3)) (newline))
         (else (write vector))))
     
     (define-syntax-rule (run-check library-name check-name check)

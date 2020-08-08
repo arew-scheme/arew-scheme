@@ -83,191 +83,140 @@
 
         (http->scheme (port->generator port)))
 
-    (define (http-request-read* generator)
-      (define (string-downcase string)
-        (list->string (map char-downcase (string->list string))))
-
-      (define (string-trim-left string)
-        (if (= (string-length string) 0)
-            ""
-            (if (char=? (string-ref string 0) #\space)
-                (string-trim-left (substring string 1 (string-length string) ))
-                string)))
-
-      (define (string-trim-right string)
-        (if (= (string-length string) 0)
-            ""
-            (if (char=? (string-ref string (fx- (string-length string) 1)) #\space)
-                (string-trim-right (substring string 0 (fx- (string-length string) 1)))
-                string)))
-
-      (define (string-trim string)
-        (string-trim-right (string-trim-left string)))
-
-      (define (content-length headers)
-        (if (null? headers)
-            #f
-            (let ((head (string-downcase (caar headers))))
-              (if (string=? head "content-length")
-                  (string->number (string-trim (cdar headers)))
-                  (content-length (cdr headers))))))
-
-      (define (chunked? headers)
-        (if (null? headers)
-            #f
-            (let ((head (string-downcase (caar headers))))
-              (if (string=? head (string-downcase "transfer-encoding"))
-                  (string=? (string-downcase (string-trim (cdar headers)))
-                            "chunked")
-                  (chunked? (cdr headers))))))
-
-      (define (body-read headers generator)
-        (cond
-         ((content-length headers) => (lambda (n)
-                                        (generator->string (gmap integer->char (gtake generator n)))))
-         ((chunked? headers) (generator->string
-                              (gmap integer->char 
-                                    (http-request-chunked-body-generator generator))))
-         (else #f)))
-
-      (call-with-values (lambda () (http-request-read generator))
-        (lambda (method uri version headers)
-          (values method uri version headers (body-read headers generator)))))
-
     (define check-001
-      (check-values (values "PUT" "/stuff/here?foo=bar" "HTTP/1.0"
-                            '(("Content-Length" . " 14")
-                              ("Content-Type" . " application/json")
-                              ("Server" . " http://127.0.0.1:5984"))
+      (check-values (values "PUT" "/stuff/here?foo=bar" '(1 . 0)
+                            '(("Content-Length" . "14")
+                              ("Content-Type" . "application/json")
+                              ("Server" . "http://127.0.0.1:5984"))
                             "{\"nom\": \"nom\"}")
-                    (http-request-read* (http-file->generator "requests/valid/001.http"))))
+                    (http-request-read (http-file->generator "requests/valid/001.http"))))
 
     (define check-002
-      (check-values (values "GET" "/test" "HTTP/1.1"
-                            '(("Accept" . " */*")
-                              ("Host" . " 0.0.0.0=5000")
-                              ("User-Agent" . " curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1"))
+      (check-values (values "GET" "/test" '(1 . 1)
+                            '(("Accept" . "*/*")
+                              ("Host" . "0.0.0.0=5000")
+                              ("User-Agent" . "curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1"))
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/002.http"))))
+                    (http-request-read (http-file->generator "requests/valid/002.http"))))
 
     (define check-003
-      (check-values (values "GET" "/favicon.ico" "HTTP/1.1"
-                            '(("Connection" . " keep-alive")
-                              ("Keep-Alive" . " 300")
-                              ("Accept-Charset" . " ISO-8859-1,utf-8;q=0.7,*;q=0.7")
-                              ("Accept-Encoding" . " gzip,deflate")
-                              ("Accept-Language" . " en-us,en;q=0.5")
-                              ("Accept" . " text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                              ("User-Agent" . " Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9) Gecko/2008061015 Firefox/3.0")
-                              ("Host" . " 0.0.0.0=5000"))
+      (check-values (values "GET" "/favicon.ico" '(1 . 1)
+                            '(("Connection" . "keep-alive")
+                              ("Keep-Alive" . "300")
+                              ("Accept-Charset" . "ISO-8859-1,utf-8;q=0.7,*;q=0.7")
+                              ("Accept-Encoding" . "gzip,deflate")
+                              ("Accept-Language" . "en-us,en;q=0.5")
+                              ("Accept" . "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                              ("User-Agent" . "Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9) Gecko/2008061015 Firefox/3.0")
+                              ("Host" . "0.0.0.0=5000"))
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/003.http"))))
+                    (http-request-read (http-file->generator "requests/valid/003.http"))))
 
     (define check-004
-      (check-values (values "GET" "/silly" "HTTP/1.1"
+      (check-values (values "GET" "/silly" '(1 . 1)
                             '(("aaaaaaaaaaaaa" . "++++++++++"))
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/004.http"))))
+                    (http-request-read (http-file->generator "requests/valid/004.http"))))
 
     (define check-005
-      (check-values (values "GET" "/forums/1/topics/2375?page=1#posts-17408" "HTTP/1.1"
+      (check-values (values "GET" "/forums/1/topics/2375?page=1#posts-17408" '(1 . 1)
                             '()
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/005.http"))))
+                    (http-request-read (http-file->generator "requests/valid/005.http"))))
 
     (define check-006
-      (check-values (values "GET" "/get_no_headers_no_body/world" "HTTP/1.1"
+      (check-values (values "GET" "/get_no_headers_no_body/world" '(1 . 1)
                             '()
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/006.http"))))
+                    (http-request-read (http-file->generator "requests/valid/006.http"))))
 
     (define check-007
-      (check-values (values "GET" "/get_one_header_no_body" "HTTP/1.1"
-                            '(("Accept" . " */*"))
+      (check-values (values "GET" "/get_one_header_no_body" '(1 . 1)
+                            '(("Accept" . "*/*"))
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/007.http"))))
+                    (http-request-read (http-file->generator "requests/valid/007.http"))))
 
     (define check-008
-      (check-values (values "GET" "/unusual_content_length" "HTTP/1.0"
-                            '(("conTENT-Length" . " 5"))
+      (check-values (values "GET" "/unusual_content_length" '(1 . 0)
+                            '(("conTENT-Length" . "5"))
                             "HELLO")
-                    (http-request-read* (http-file->generator "requests/valid/008.http"))))
+                    (http-request-read (http-file->generator "requests/valid/008.http"))))
 
     (define check-009
-      (check-values (values "POST" "/post_identity_body_world?q=search#hey" "HTTP/1.1"
-                            '(("Content-Length" . " 5")
-                              ("Transfer-Encoding" . " identity")
-                              ("Accept" . " */*"))
+      (check-values (values "POST" "/post_identity_body_world?q=search#hey" '(1 . 1)
+                            '(("Content-Length" . "5")
+                              ("Transfer-Encoding" . "identity")
+                              ("Accept" . "*/*"))
                             "World")
-                    (http-request-read* (http-file->generator "requests/valid/009.http"))))
+                    (http-request-read (http-file->generator "requests/valid/009.http"))))
 
     (define check-010
-      (check-values (values "POST" "/post_chunked_all_your_base" "HTTP/1.1"
-                            '(("Transfer-Encoding" . " chunked"))
+      (check-values (values "POST" "/post_chunked_all_your_base" '(1 . 1)
+                            '(("Transfer-Encoding" . "chunked"))
                             "all your base are belong to us")
-                    (http-request-read* (http-file->generator "requests/valid/010.http"))))
+                    (http-request-read (http-file->generator "requests/valid/010.http"))))
 
     (define check-011
-      (check-values (values "POST" "/two_chunks_mult_zero_end" "HTTP/1.1"
-                            '(("Transfer-Encoding" . " chunked"))
+      (check-values (values "POST" "/two_chunks_mult_zero_end" '(1 . 1)
+                            '(("Transfer-Encoding" . "chunked"))
                             "hello world")
-                    (http-request-read* (http-file->generator "requests/valid/011.http"))))
+                    (http-request-read (http-file->generator "requests/valid/011.http"))))
 
     (define check-012
-      (check-values (values "POST" "/chunked_w_trailing_headers" "HTTP/1.1"
-                            '(("Transfer-Encoding" . " chunked"))
+      (check-values (values "POST" "/chunked_w_trailing_headers" '(1 . 1)
+                            '(("Transfer-Encoding" . "chunked"))
                             "hello world")
-                    (http-request-read* (http-file->generator "requests/valid/012.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/012.http"))))
+
     (define check-013
-      (check-values (values "POST" "/chunked_w_extensions" "HTTP/1.1"
-                            '(("Transfer-Encoding" . " chunked"))
+      (check-values (values "POST" "/chunked_w_extensions" '(1 . 1)
+                            '(("Transfer-Encoding" . "chunked"))
                             "hello world")
-                    (http-request-read* (http-file->generator "requests/valid/013.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/013.http"))))
+
     (define check-014
-      (check-values (values "GET" "/with_\"quotes\"?foo=\"bar\"" "HTTP/1.1"
+      (check-values (values "GET" "/with_\"quotes\"?foo=\"bar\"" '(1 . 1)
                             '()
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/014.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/014.http"))))
+
     (define check-015
-      (check-values (values "GET" "/test" "HTTP/1.0"
-                            '(("Accept" . " */*")
-                              ("User-Agent" . " ApacheBench/2.3")
-                              ("Host" . " 0.0.0.0:5000"))
+      (check-values (values "GET" "/test" '(1 . 0)
+                            '(("Accept" . "*/*")
+                              ("User-Agent" . "ApacheBench/2.3")
+                              ("Host" . "0.0.0.0:5000"))
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/015.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/015.http"))))
+
     #;(define check-016
       (check-values (values)
-                    (http-request-read* (http-file->generator "requests/valid/016.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/016.http"))))
+
     (define check-017
-      (check-values (values "GET" "/stuff/here?foo=bar" "HTTP/1.0"
-                            '(("If-Match" . " large-sound")
-                              ("If-Match" . " bazinga!"))
+      (check-values (values "GET" "/stuff/here?foo=bar" '(1 . 0)
+                            '(("If-Match" . "large-sound")
+                              ("If-Match" . "bazinga!"))
                             #f)
-                    (http-request-read* (http-file->generator "requests/valid/017.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/017.http"))))
+
     (define check-018
-      (check-values (values "GET" "/first" "HTTP/1.0" '() #f)
-                    (http-request-read* (http-file->generator "requests/valid/019.http"))))
-    
+      (check-values (values "GET" "/first" '(1 . 0) '() #f)
+                    (http-request-read (http-file->generator "requests/valid/019.http"))))
+
     (define check-019
-      (check-values (values "GET" "/first" "HTTP/1.0" '() #f)
-                    (http-request-read* (http-file->generator "requests/valid/019.http"))))
-    
+      (check-values (values "GET" "/first" '(1 . 0) '() #f)
+                    (http-request-read (http-file->generator "requests/valid/019.http"))))
+
     (define check-020
-      (check-values (values "GET" "/first" "HTTP/1.0"
-                            '(("Content-Length" . " 24"))
+      (check-values (values "GET" "/first" '(1 . 0)
+                            '(("Content-Length" . "24"))
                             "GET /second HTTP/1.1\r\n\r\n")
-                    (http-request-read* (http-file->generator "requests/valid/020.http"))))
-    
+                    (http-request-read (http-file->generator "requests/valid/020.http"))))
+
     (define check-021
       (check-values (values)
-                    (http-request-read* (http-file->generator "requests/valid/021.http"))))
+                    (http-request-read (http-file->generator "requests/valid/021.http"))))
 
-    
+
 
     ))

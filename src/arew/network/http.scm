@@ -18,6 +18,7 @@
           http-response-write)
 
   (import (scheme base)
+          (scheme char)
           (scheme generator)
           (scheme fixnum))
 
@@ -54,18 +55,39 @@
       (define version '())
 
       (define (method-read char)
-        (if (char=? char \space)
+        (if (char=? char #\space)
             (values #t uri-read)
             (begin
               (set! method (cons char method))
               (values #t method-read))))
 
       (define (uri-read char)
-        (if (char=? char \space)
+        (if (char=? char #\space)
             (values #t start-version-read)
             (begin
-              (set! method (cons char uri))
+              (set! uri (cons char uri))
               (values #t uri-read))))
+
+      (define (major-version-read char)
+        (let ((major (string->number (list->string (list char)))))
+          (if major
+              (begin
+                (set! version (cons major version))
+                (values #t (expected-read #\. minor-version-read)))
+              (raise (make-http-error "Invalid major version" char)))))
+
+      (define (minor-version-read char)
+        (let ((minor (string->number (list->string (list char)))))
+          (if minor
+              (begin
+                (set! version (cons minor version))
+                (values #t return-read))
+              (raise (make-http-error "Invalid minor version" char)))))
+
+      (define (newline-read char)
+        (if (char=? char #\newline)
+            (values #f #f)
+            (raise (make-http-error "Invalid end of line" char))))
 
       (define start-version-read
         ;; TODO: make it nice
@@ -76,34 +98,14 @@
                                                                     (expected-read #\/
                                                                                    major-version-read))))))
 
-      (define (major-version-read char)
-        (let ((major (string->integer (list->string (list char)))))
-          (if major
-              (begin
-                (set! version (cons major version))
-                (values #t (expected-read #\. minor-version-read)))
-              (raise (make-http-error "Invalid major version" char)))))
-
-      (define (minor-version-read char)
-        (let ((minor (string->integer (list->string (list char)))))
-          (if minor
-              (begin
-                (set! version (cons minor version))
-                (values #t return-read))
-              (raise (make-http-error "Invalid minor version" char)))))
-
-
-      (define (newline-read char)
-        (if (char=? char #\newline)
-            (values #f #f)
-            (raise (make-http-error "Invalid end of line" char))))
-
       (define return-read (expected-read #\return newline-read))
 
       (let loop ((k method-read)
                  (char (generator)))
+
         (when (eof-object? char)
           (raise (make-http-error "Request line truncated!" #f)))
+
         (call-with-values (lambda () (k (integer->char char)))
           (lambda (continue? continuation)
             (if continue?
@@ -125,9 +127,9 @@
       (accumulator (char->integer #\space))
       ;; version
       (put-string accumulator " HTTP/")
-      (accumulator (car (string->list (integer->string (car version)))))
+      (accumulator (car (string->list (number->string (car version)))))
       (accumulator (char->integer #\.))
-      (accumulator (car (string->list (integer->string (cdr version)))))
+      (accumulator (car (string->list (number->string (cdr version)))))
       ;; eol
       (put-string accumulator "\r\n"))
 
@@ -136,17 +138,8 @@
       (define status-code '())
       (define reason '())
 
-      (define start-version-read
-        ;; TODO: make it nice
-        (expected-read #\H
-                       (expected-read #\T
-                                      (expected-read #\T
-                                                     (expected-read #\P
-                                                                    (expected-read #\/
-                                                                                   major-version-read))))))
-
       (define (major-version-read char)
-        (let ((major (string->integer (list->string (list char)))))
+        (let ((major (string->number (list->string (list char)))))
           (if major
               (begin
                 (set! version (cons major version))
@@ -154,7 +147,7 @@
               (raise (make-http-error "Invalid major version" char)))))
 
       (define (minor-version-read char)
-        (let ((minor (string->integer (list->string (list char)))))
+        (let ((minor (string->number (list->string (list char)))))
           (if minor
               (begin
                 (set! version (cons minor version))
@@ -168,6 +161,15 @@
                 (set! status-code (cons char status-code))
                 (values #t status-code-read-two))
               (raise (make-http-error "Invalid http status code digit" char)))))
+
+      (define start-version-read
+        ;; TODO: make it nice
+        (expected-read #\H
+                       (expected-read #\T
+                                      (expected-read #\T
+                                                     (expected-read #\P
+                                                                    (expected-read #\/
+                                                                                   major-version-read))))))
 
       (define (status-code-read-two char)
         (let ((digit (string->number (list char))))
@@ -212,9 +214,9 @@
     (define (http-response-line-write accumulator version code reason)
       ;; version
       (put-string accumulator " HTTP/")
-      (accumulator (car (string->list (integer->string (car version)))))
+      (accumulator (car (string->list (number->string (car version)))))
       (accumulator (char->integer #\.))
-      (accumulator (car (string->list (integer->string (cdr version)))))
+      (accumulator (car (string->list (number->string (cdr version)))))
       (accumulator (char->integer #\space))
       ;; code
       (put-string accumulator code)
@@ -231,25 +233,31 @@
         (define key '())
         (define value '())
 
-        (define (maybe-key-read char)
+        (define (key-read char)
           (case char
             ((#\return) (values #t newline-read))
             ((#\newline) (raise (make-http-error "Unexpected newline characters inside header line" #f)))
             ((#\:) (values #t value-read))
-            (else (set! key (cons char key)))))
+            (else (set! key (cons char key))
+                  (values #t key-read))))
 
         (define (value-read char)
           (case char
-            ((#\return (values #t newline-read)))
-            ((#\newline (raise (make-http-error "Unexpected newline characters inside header line" #f))))
-            (else (set! value (cons char value)))))
+            ((#\return) (values #t newline-read))
+            ((#\newline) (raise (make-http-error "Unexpected newline characters inside header line" #f)))
+            ((#\space) (if (null? value)
+                           (values #t value-read)
+                           (begin (set! value (cons char value))
+                                  (values #t value-read))))
+            (else (set! value (cons char value))
+                  (values #t value-read))))
 
         (define (newline-read char)
           (if (char=? char #\newline)
               (values #f #f)
               (raise (make-http-error "Invalid end of line" char))))
 
-        (let loop ((k maybe-key-read)
+        (let loop ((k key-read)
                    (char (generator)))
           (when (eof-object? char)
             (raise (make-http-error "Header line truncated!" #f)))
@@ -260,13 +268,13 @@
                   (if (null? key)
                       '()
                       (cons (list->string (reverse key))
-                            (list->string (reverse value)))))))))
+                            (string-trim-right (list->string (reverse value))))))))))
 
       (let loop ((out '())
                  (header (http-header-read generator)))
-        (if header
-            (loop (cons header (http-header-read generator)))
-            out)))
+        (if (null? header)
+            out
+            (loop (cons header out) (http-header-read generator)))))
 
     (define (http-headers-write accumulator headers)
       (let loop ((headers headers))
@@ -299,13 +307,23 @@
           (else
            (set! chunk-extension (cons char chunk-extension))
            (values #t chunk-extension-read))))
-      
+
       (define (newline-read char)
         (if (char=? char #\newline)
             (values #f #f)
             (raise (make-http-error "Invalid end of line" char))))
 
+      (define (chunk-generator generator chunk-length)
+        (let ((length (string->number (list->string (reverse chunk-length)) 16)))
+          (if (zero? length)
+              eof-object
+              (generator/continuation
+               (gtake generator length)
+               (lambda () (generator) (generator) (eof-object))))))
+      
       (lambda ()
+        (set! chunk-length '())
+        (set! chunk-extension '())
         (let loop ((k chunk-length-read)
                    (char (generator)))
           (when (eof-object? char)
@@ -315,17 +333,17 @@
               (if continue?
                   (loop continuation (generator))
                   (values (list->string (reverse chunk-extension))
-                          (gtake generator (string->number (list->string chunk-length) 16)))))))))
+                          (chunk-generator generator chunk-length))))))))
 
+    (define (generator/continuation generator k)
+      (lambda ()
+        (let ((out (generator)))
+          (if (eof-object? out)
+              (k)
+              out))))
+ 
     (define (http-chunked-body-generator generator)
 
-      (define (generator/continuation generator k)
-        (lambda ()
-          (let ((out (generator)))
-            (if (eof-object? out)
-                (k)
-                out))))
-     
       (define chunks)
 
       (define (next-chunk)
@@ -341,7 +359,7 @@
                     maybe-eof))))))
 
       (define (start)
-        (set! chunks (http-request-chunks-generator generator))
+        (set! chunks (http-chunks-generator generator))
         (next-chunk))
 
       (define continue start)
@@ -351,16 +369,13 @@
 
     (define (http-chunk accumulator bytevector)
       (let* ((length (bytevector-length bytevector))
-             (chunk-size (integer->string length 16)))
-        (put-string chunk-size)
-        (put-string "\r\n")
+             (chunk-size (number->string length 16)))
+        (put-string accumulator chunk-size)
+        (put-string accumulator "\r\n")
         (let loop ((index 0))
-          (unless (fx= (fx- length index) 0)
-            (accumulator (bytevector-ref bytevector index))
+          (unless (fx=? (fx- length index) 0)
+            (accumulator accumulator (bytevector-u8-ref bytevector index))
             (loop (fx+ index 1))))))
-
-      (define (string-downcase string)
-        (list->string (map char-downcase (string->list string))))
 
       (define (string-trim-left string)
         (if (= (string-length string) 0)
@@ -384,7 +399,7 @@
             #f
             (let ((head (string-downcase (caar headers))))
               (if (string=? head "content-length")
-                  (string->number (string-trim (cdar headers)))
+                  (string->number (cdar headers))
                   (content-length (cdr headers))))))
 
       (define (chunked? headers)
@@ -392,7 +407,7 @@
             #f
             (let ((head (string-downcase (caar headers))))
               (if (string=? head (string-downcase "transfer-encoding"))
-                  (string=? (string-downcase (string-trim (cdar headers)))
+                  (string=? (string-downcase (cdar headers))
                             "chunked")
                   (chunked? (cdr headers))))))
 
@@ -401,14 +416,12 @@
          ((content-length headers) => (lambda (n)
                                         (generator->string (gmap integer->char (gtake generator n)))))
          ((chunked? headers) (generator->string
-                              (gmap integer->char 
-                                    (http-request-chunked-body-generator generator))))
+                              (gmap integer->char
+                                    (http-chunked-body-generator generator))))
          (else #f)))
-    
+
     (define (http-request-read generator)
-
-
-      (call-with-values (lambda () (http-request-read generator))
+      (call-with-values (lambda () (http-request-line-read generator))
         (lambda (method uri version)
           (let ((headers (http-headers-read generator)))
             (values method uri version headers (body-read headers generator))))))
@@ -419,12 +432,23 @@
       (let* ((bytevector (string->utf8 body))
              (length (bytevector-length bytevector)))
         (let loop ((index 0))
-          (unless (fx= (fx- length index) 0)
-            (accumulator (bytevector-ref bytevector index))
+          (unless (fx=? (fx- length index) 0)
+            (accumulator (bytevector-u8-ref bytevector index))
             (loop (fx+ index 1))))))
 
     (define (http-response-read generator)
       (call-with-values (lambda () (http-response-line-read generator))
         (lambda (version code reason)
           (let ((headers (http-headers-read generator)))
-            (values (version code reason headers (body-read headeers generator)))))))))
+            (values (version code reason headers (body-read headers generator)))))))
+
+
+    (define (http-response-write accumulator version status-code reason headers body)
+      (http-response-line-write accumulator version status-code reason)
+      (http-headers-write accumulator headers)
+      (let* ((bytevector (string->utf8 body))
+             (length (bytevector-length bytevector)))
+        (let loop ((index 0))
+          (unless (fx=? (fx- length index) 0)
+            (accumulator (bytevector-u8-ref bytevector index))
+            (loop (fx+ index 1))))))))
