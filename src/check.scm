@@ -53,6 +53,13 @@
 
     ;; how to run the test suite
 
+    (define (error-format vector)
+      (case (vector-ref vector 1)
+        ((unexpected-value)
+         (display "*** expected: ") (write (vector-ref vector 2)) (newline)
+         (display "*** given: ") (write (vector-ref vector 3)) (newline))
+        (else (write vector))))
+    
     (define-syntax-rule (run-check library-name check-name check)
       (begin
         (guard (obj
@@ -71,6 +78,6 @@
           (newline)
           (let ((out (check)))
             (when (not (vector-ref out 0))
-              (write out)
+              (error-format out)
               (newline)
               (exit 1))))))))
