@@ -1,6 +1,8 @@
 SOURCES = 					\
 	README.md				\
 
+PREFIX=$(PWD)
+
 help: ## This help.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
@@ -14,12 +16,12 @@ termbox:
 	cp local/src/termbox-truecolor/build/src/libtermbox.so local/lib/
 
 chez:
-	mkdir -p local/src
-	sudo apt install uuid-dev
-	cd local/src && git clone --recursive --depth=1 https://github.com/cisco/ChezScheme/
-	cd local/src/ChezScheme/ && ./configure --disable-x11 --disable-curses --threads
-	cd local/src/ChezScheme/ && make
-	cd local/src/ChezScheme/ && sudo make install
+	mkdir -p $(PREFIX)/local/src
+	sudo apt install git sudo uuid-dev
+	cd $(PREFIX)/local/src && git clone --recursive --depth=1 https://github.com/cisco/ChezScheme/
+	cd $(PREFIX)/local/src/ChezScheme/ && ./configure --disable-x11 --disable-curses --threads
+	cd $(PREFIX)/local/src/ChezScheme/ && make
+	cd $(PREFIX)/local/src/ChezScheme/ && sudo make install
 
 init: chez
 
