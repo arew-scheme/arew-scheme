@@ -592,6 +592,7 @@ int run_program(int argc, const char **argv, const char *bootfilename, const cha
 
   (make-boot-file (string-append temporary-directory "/program.boot")
                   '()
+                  "/usr/lib/csv9.5.3/ta6le/petite.boot"
                   "/usr/lib/csv9.5.3/ta6le/scheme.boot"
                   (string-append temporary-directory "/base-boot.scm"))
 
