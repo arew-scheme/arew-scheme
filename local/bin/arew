@@ -3,5 +3,5 @@ if [[ -z "$VENV" ]]
 then
         echo "You need to be in a virtual env..."    
 else
-        scheme --program $AREW_GIT_ROOT/src/arew.scm eval $@
+        scheme --program $AREW_GIT_ROOT/src/arew.scm $@
 fi
