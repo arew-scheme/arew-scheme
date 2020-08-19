@@ -17,7 +17,7 @@ termbox:
 
 chez:
 	mkdir -p $(PREFIX)/local/src
-	sudo apt install git sudo uuid-dev
+	sudo apt install git uuid-dev
 	cd $(PREFIX)/local/src && git clone --recursive --depth=1 https://github.com/cisco/ChezScheme/
 	cd $(PREFIX)/local/src/ChezScheme/ && ./configure --disable-x11 --disable-curses --threads
 	cd $(PREFIX)/local/src/ChezScheme/ && make
