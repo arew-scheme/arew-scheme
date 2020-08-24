@@ -1,7 +1,0 @@
-#!/bin/sh
-if [[ -z "$VENV" ]]
-then
-        echo "You need to be in a virtual env..."    
-else
-        arew $AREW_GIT_ROOT/src/bibendum.scm $@
-fi
