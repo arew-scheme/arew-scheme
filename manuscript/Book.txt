@@ -1,6 +1,8 @@
 preface-and-copyright.md
 introduction.md
 tutorial.md
+fdb-compendium.md
+fdb.md
 scheme-base.md
 scheme-bitwise.md
 scheme-box.md
