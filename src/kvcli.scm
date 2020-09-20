@@ -31,8 +31,8 @@
 (define (help)
   (display "Usage:\n")
   (display "\n")
-  (display "  set DB KEY VALUE\n")
-  (display "  get DB KEY\n"))
+  (display "  kvcli set DB KEY VALUE\n")
+  (display "  kvcli get DB KEY\n"))
 
 (match (cdr (command-line))
   (("set" db key value) (set db key value))
