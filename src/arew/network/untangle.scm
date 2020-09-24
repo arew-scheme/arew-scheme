@@ -16,12 +16,13 @@
           socket-accumulator)
 
   (import (except (chezscheme) read write define-record-type)
-          (only (arew scheme base) pk define-record-type)
-          (prefix (arew scheme hash-table) scheme:)
-          (arew scheme comparator)
+          (only (scheme base) pk define-record-type)
+          (prefix (scheme hash-table) scheme:)
+          (scheme comparator)
           (arew network epoll)
           (prefix (arew network socket) socket:)
           (arew scheme bytevector))
+  ;;
   ;; inspired from https://stackoverflow.com/a/51777980/140837
   ;;
   ;; single thread, single event-loop
