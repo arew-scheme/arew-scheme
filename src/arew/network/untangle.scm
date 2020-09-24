@@ -21,7 +21,7 @@
           (scheme comparator)
           (arew network epoll)
           (prefix (arew network socket) socket:)
-          (arew scheme bytevector))
+          (scheme bytevector))
   ;;
   ;; inspired from https://stackoverflow.com/a/51777980/140837
   ;;
