@@ -117,7 +117,7 @@
       ;; future-continue is not thread-safe, see
       ;; future-continue-with-lock.
       (with-mutex (future-mutex future)
-        (if (future-continue future)
+        (if (future-continuation future)
             ;; Some code already called `await` on the future ie. they
             ;; are waiting for the values, call the continuation.
             (spawn (lambda () (apply (future-continuation future) values)))
@@ -130,7 +130,7 @@
       ;; The same as future-continue, except it is thread-safe, it can
       ;; be called in a parallel thread.
       (with-mutex (future-mutex future)
-        (if (future-continue future)
+        (if (future-continuation future)
             ;; XXX: Use spawn-with-lock instead of spawn.
             (spawn-with-lock (lambda () (apply (future-continuation future) values)))
             (future-values! future values))))
@@ -271,8 +271,10 @@
                   out))))))
 
     (define (socket-accumulator fd)
-      (lambda (bv)
-        (write fd bv 0 (bytevector-length bv))))
+      (lambda (something)
+        (if (integer? something)
+            (write fd (bytevector something) 0 1)
+            (write fd something 0 (bytevector-length something)))))
 
     (define (fd->port fd)
       ;; TODO: logior 2048 with existing flags
