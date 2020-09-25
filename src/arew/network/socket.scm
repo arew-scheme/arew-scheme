@@ -28,7 +28,8 @@
    listen
    fd->port)
 
-  (import (chezscheme))
+  (import (chezscheme)
+          (only (scheme base) pk))
 
   (define-syntax define-syntax-rule
     (syntax-rules ()
@@ -65,9 +66,9 @@
         (func code))))
 
   (define errno
-    (let ((entry (foreign-entry "errno")))
+    (let ((func (foreign-procedure "__errno_location" () void*)))
       (lambda ()
-        (foreign-ref 'int entry 0))))
+        (foreign-ref 'int (func) 0))))
 
   (define-syntax-rule (check* who v)
     (when (= v -1)
