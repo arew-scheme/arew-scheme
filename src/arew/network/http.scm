@@ -115,8 +115,7 @@
                         (apply cons (reverse version))))))))
 
     (define (put-string accumulator string)
-      (for-each (lambda (char) (accumulator (char->integer char)))
-                (list->string string)))
+      (accumulator (string->utf8 string)))
 
     (define (http-request-line-write accumulator method uri version)
       ;; method
@@ -213,16 +212,15 @@
 
     (define (http-response-line-write accumulator version code reason)
       ;; version
-      (put-string accumulator " HTTP/")
-      (accumulator (car (string->list (number->string (car version)))))
-      (accumulator (char->integer #\.))
-      (accumulator (car (string->list (number->string (cdr version)))))
-      (accumulator (char->integer #\space))
+      (put-string accumulator "HTTP/")
+      (put-string accumulator
+                  (string-append (number->string (car version))
+                                 "."
+                                 (number->string (cdr version))))
       ;; code
-      (put-string accumulator code)
-      (accumulator (char->integer #\space))
+      (put-string accumulator (string-append " " (number->string code)))
       ;; reason
-      (put-string accumulator reason)
+      (put-string accumulator (string-append " " reason))
       ;; eol
       (put-string accumulator "\r\n"))
 
@@ -441,7 +439,6 @@
         (lambda (version code reason)
           (let ((headers (http-headers-read generator)))
             (values (version code reason headers (body-read headers generator)))))))
-
 
     (define (http-response-write accumulator version status-code reason headers body)
       (http-response-line-write accumulator version status-code reason)
