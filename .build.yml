@@ -1,0 +1,9 @@
+image: ubuntu/lts
+packages:
+  - git
+  - uuid-dev
+sources:
+  - https://github.com/swaywm/sway
+tasks:
+  - build-chez: make chez
+  - tests: make check
