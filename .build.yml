@@ -1,0 +1,7 @@
+image: ubuntu/lts
+packages:
+  - git
+  - uuid-dev
+tasks:
+  - build-chez: cd arew && make chez
+  - tests: cd arew && make check
