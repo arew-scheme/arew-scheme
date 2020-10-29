@@ -3,5 +3,5 @@ packages:
   - git
   - uuid-dev
 tasks:
-  - build-chez: cd arew && make chez
+  - init: cd arew && make init
   - tests: cd arew && make check
