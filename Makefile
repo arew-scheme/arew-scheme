@@ -33,7 +33,13 @@ chez:
 	cd $(PREFIX)/local/src/ChezScheme/ && make
 	cd $(PREFIX)/local/src/ChezScheme/ && sudo make install
 
-init: chez
+fdb:
+	wget https://www.foundationdb.org/downloads/6.2.27/ubuntu/installers/foundationdb-clients_6.2.27-1_amd64.deb
+	sudo dpkg -i foundationdb-clients_6.2.27-1_amd64.deb
+	wget https://www.foundationdb.org/downloads/6.2.27/ubuntu/installers/foundationdb-server_6.2.27-1_amd64.deb
+	sudo dpkg -i foundationdb-server_6.2.27-1_amd64.deb
+
+init: chez fdb
 
 doc:
 	cat $(SOURCES) > arew-scheme.md
