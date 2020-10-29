@@ -1,19 +1,23 @@
 (library (arew data base foundationdb untangle)
 
-  (export make-fdb
+  (export fdb-init!
+          make-fdb
           fdb-close
           fdb-in-transaction
           fdb-ref
-          fdb-set
-          fdb-delete
+          fdb-set!
+          fdb-delete!
           fdb-range
           strinc)
 
-  (import (scheme base))
-  (import (scheme bytevector))
-  (import (arew data base foundationdb))
-  (import (arew network untangle))
-  (import (only (chezscheme) fork-thread))
+  (import (scheme base)
+          (only (chezscheme) sleep make-time)
+          (only (scheme bytevector)
+                bytevector->u8-list
+                u8-list->bytevector)
+          (arew data base foundationdb)
+          (arew network untangle)
+          (only (chezscheme) fork-thread))
 
   (begin
 
@@ -27,14 +31,16 @@
       okvs-transaction?
       (pointer transaction-pointer))
 
-    (define *network-thread* #f)
+    (define %network-thread #f)
 
-    (define (make-fdb config)
+    (define (fdb-init! version)
+      (fdb-select-api-version 620)
       ;; setup network thread
       (fdb-setup-network)
-      (set! *network-thread* (fork-thread fdb-setup-network))
-      ;; create cluster and database
-      (%make-fdb (fdb-create-database 0)))
+      (set! %network-thread (fork-thread fdb-run-network)))
+
+    (define (make-fdb)
+      (%make-fdb (fdb-create-database #f)))
 
     (define (fdb-close fdb)
       (fdb-database-destroy (fdb-database fdb)))
@@ -43,20 +49,21 @@
       (make-transaction (fdb-database-create-transaction (fdb-database fdb))))
 
     (define (fdb-transaction-commit-callback future*)
+      ;; TODO: fdb-future-callback will create a memory leak because
+      ;; it locks the lambda.
       (fdb-future-callback
        (lambda (future)
          (let ((error (fdb-future-get-error future)))
            (fdb-future-destroy future)
            (future-continue future* (list error))))))
 
-    (define (fdb-transaction-commit transaction)
+    (define (fdb-transaction-commit* transaction)
       (let ((future (fdb-transaction-commit (transaction-pointer transaction)))
             (future* (make-future)))
         (fdb-future-set-callback future (fdb-transaction-commit-callback future*))
         (let ((error (await future*)))
           (fdb-transaction-destroy (transaction-pointer transaction))
-          (unless (zero? error)
-            (raise (cons 'foundationdb error))))))
+          (check error))))
 
     (define (fdb-transaction-rollback transaction)
       (fdb-transaction-cancel (transaction-pointer transaction))
@@ -90,7 +97,7 @@
                         (raise ex)))
             (call-with-values (lambda () (proc tx))
               (lambda out
-                (okvs-transaction-commit tx)
+                (fdb-transaction-commit* tx)
                 (apply values out)))))))
 
     (define (fdb-ref-callback future*)
@@ -117,12 +124,12 @@
               (raise (cons 'foundationdb error)))
             value))))
 
-    (define (fdb-set tx key value)
+    (define (fdb-set! tx key value)
       (fdb-transaction-set (transaction-pointer tx)
                            key
                            value))
 
-    (define (fdb-delete transaction key)
+    (define (fdb-delete! transaction key)
       (fdb-transaction-clear (transaction-pointer transaction)
                              key))
 
@@ -151,7 +158,7 @@
                                                0
                                                end-key
                                                end-include?
-                                               0
+                                               1
                                                (or limit 0)
                                                0
                                                (if limit 0 -2) ;; EXACT or WANT_ALL
@@ -180,4 +187,4 @@
               (loop (cdr out))
               (set! bytes out)))
         ;; increment first byte, reverse and return the bytevector
-        (u8-list->bytevector (reverse (cons (+ 1 (car bytes)) (cdr bytes))))))
+        (u8-list->bytevector (reverse (cons (+ 1 (car bytes)) (cdr bytes))))))))
