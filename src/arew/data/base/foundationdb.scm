@@ -1,3 +1,4 @@
+#!chezscheme
 ;; foundationdb
 
 ;; Copyright © 2019-2020 Amirouche BOUBEKKI <amirouche at hyper dev>
@@ -11,7 +12,8 @@
 (library (arew data base foundationdb)
 
   (export
-   fdb-error
+   check
+   fdb-select-api-version
    fdb-setup-network
    fdb-run-network
    fdb-stop-network
@@ -56,11 +58,11 @@
       (#%$object-address bv (+ (foreign-sizeof 'void*) 1)))
 
     (define-syntax-rule (with-lock obj body ...)
-      (lock-object obj)
-      (call-with-values (lambda () body ...)
-        (lambda out
-          (unlock-object obj)
-          (apply values out))))
+      (begin (lock-object obj)
+             (call-with-values (lambda () body ...)
+               (lambda out
+                 (unlock-object obj)
+                 (apply values out)))))
 
     ;; ffi helpers
 
@@ -99,8 +101,9 @@
           (func code))))
 
     (define-syntax-rule (check code)
-      (unless (= code 0)
-        (raise (cons 'foundationdb code))))
+      (let ((code* code))
+        (unless (= code* 0)
+          (raise (list 'foundationdb code* (fdb-error code*))))))
 
     ;; (define fdb-error-predicate
     ;;   (let ((func (foreign-procedure* int "fdb_error_predicate" ffi:int error)))
@@ -111,6 +114,11 @@
     ;;   (let ((func (fdb error "fdb_network_set_option" enum POINTER ffi:int)))
     ;;     (lambda (option value length)
     ;;       (check (func option value length)))))
+
+    (define fdb-select-api-version
+      (let ((func (foreign-procedure* int "fdb_select_api_version_impl" int int)))
+        (lambda (version)
+          (check (func version 620)))))
 
     (define fdb-setup-network
       (let ((func (foreign-procedure* int "fdb_setup_network")))
@@ -134,11 +142,11 @@
 
 
     (define-ftype %keyvalue
-      (struct
-       (key void*)
-       (key-length int)
-       (value void*)
-       (value-length int)))
+      (packed (struct
+               (key void*)
+               (key-length int)
+               (value void*)
+               (value-length int))))
 
     (define fdb-future-cancel
       (let ((func (foreign-procedure* void "fdb_future_cancel" void*)))
@@ -165,6 +173,10 @@
         (lambda (future)
           (= 1 (func future)))))
 
+    (define (pk . args)
+      (display args)(newline)
+      (car (reverse args)))
+
     (define (fdb-future-callback proc)
       (let ((code (foreign-callable __collect_safe
                                     (lambda (a b) (proc a)) (void* void*) void)))
@@ -187,11 +199,11 @@
           (let ((key (make-double-pointer))
                 (length (make-double-pointer)))
             (check (func future key length))
-            (let* ((length* (foreign-ref int length 0))
+            (let* ((length* (foreign-ref 'int length 0))
                    (out (make-bytevector length*)))
               (let loop ((index 0))
                 (unless (= index length*)
-                  (bytevector-u8-set! out index (foreign-ref unsigned-8 key index))
+                  (bytevector-u8-set! out index (foreign-ref 'unsigned-8 key index))
                   (loop (+ index 1))))
               (foreign-free key)
               (foreign-free length)
@@ -204,17 +216,18 @@
                 (value (make-double-pointer))
                 (length (make-double-pointer)))
             (check (func future present value length))
-            (if (= 0 (foreign-ref integer present 0))
+            (if (= 0 (foreign-ref 'int present 0))
                 (begin
                   (foreign-free present)
                   (foreign-free value)
                   (foreign-free length)
                   #f)
-                (let* ((length* (foreign-ref int length 0))
-                       (out (make-bytevector length*)))
+                (let* ((length* (foreign-ref 'int length 0))
+                       (out (make-bytevector length*))
+                       (value* (dereference value)))
                   (let loop ((index 0))
                     (unless (= index length*)
-                      (bytevector-u8-set! out index (foreign-ref unsigned-8 value index))
+                      (bytevector-u8-set! out index (foreign-ref 'unsigned-8 value* index))
                       (loop (+ index 1))))
                   (foreign-free present)
                   (foreign-free value)
@@ -230,37 +243,41 @@
         ;; set bytevector key
         (let loop ((index 0))
           (unless (= index key-length)
-            (bytevector-u8-set! key (ftype-ref %keyvalue (key) kv index))
+            (bytevector-u8-set! key
+                                index
+                                (foreign-ref 'unsigned-8 (ftype-ref %keyvalue (key) kv) index))
             (loop (+ index 1))))
         ;; set bytevector value
         (let loop ((index 0))
           (unless (= index value-length)
-            (bytevector-u8-set! value (ftype-ref %keyvalue (value) kv index))
+            (bytevector-u8-set! value
+                                index
+                                (foreign-ref 'unsigned-8 (ftype-ref %keyvalue (value) kv) index))
             (loop (+ index 1))))
         (cons key value)))
 
     (define fdb-future-get-range
-      (let ((func (foreign-procedure* "fdb_future_get_keyvalue_array" void* void* void* void*)))
+      (let ((func (foreign-procedure* void* "fdb_future_get_keyvalue_array" void* void* void* void*)))
         (lambda (future)
           (let ((out (make-double-pointer))
                 (count (make-double-pointer))
                  ;; TODO: support different streaming mode
                 (more (make-double-pointer)))
             (check (func future out count more))
-            (let ((count* (foreign-ref int count 0))
-                  (pointer (dereference out)))
-              (let loop ((index (- count 1))
-                         (out '()))
+            (let ((count* (foreign-ref 'int count 0)))
+              (let loop ((index (- count* 1))
+                         (out* '()))
                 (if (= index -1)
-                    out
+                    out*
                     (loop (- index 1)
-                          (cons (key-value->cons (foreign-ref void* out index))
-                                out)))))))))
+                          (cons (key-value->cons (+ (dereference out)
+                                                    (* index (ftype-sizeof %keyvalue))))
+                                out*)))))))))
 
     (define fdb-create-database
       (let ((func (foreign-procedure "fdb_create_database" (string void*) int)))
         (lambda (cluster-file)
-          (let ((out* (make-double-pointer)))
+          (let ((out (make-double-pointer)))
             (func cluster-file out)
             (dereference out)))))
 
