@@ -5,7 +5,7 @@
           spawn
           make-future
           await
-          future-continue-with-lock
+          future-continue
           socket
           accept
           fd->port
@@ -39,6 +39,7 @@
     (define %prompt #f)
     (define %queue '())
     (define %wouldblock (list 'wouldblock))
+    (define %future-waiting 0)
 
     (define EWOULDBLOCK 11)
 
@@ -70,7 +71,7 @@
       ;; The <future> is meant to support parallel work.  The primary
       ;; use case is to `make-future` in a green thread of the main
       ;; thread, then use the returned value in a parallel thread to
-      ;; resolve the future using `future-continue-with-lock`.  The
+      ;; resolve the future using `future-continue`.  The
       ;; main thread is expected to call `await` on the future to
       ;; pause the current green thread, until a parallel thread
       ;; resolve the future.  In other words, a future shared between
@@ -118,7 +119,9 @@
         (if (future-continuation future)
             ;; Some code already called `await` on the future ie. they
             ;; are waiting for the values, call the continuation.
-            (spawn (lambda () (apply (future-continuation future) values)))
+            (spawn (lambda ()
+                     (set! %future-waiting (fx- %future-waiting 1))
+                     (apply (future-continuation future) values)))
             ;; Concurrently, the values are set before the future is
             ;; awaited.  Set the values to allow, await to return
             ;; immediatly.
@@ -134,14 +137,19 @@
        (lambda (k fd mode)
          (case mode
            ;; If the thunk aborts, then mark FD as waiting output or input.
-           ((write) (epoll-ctl epoll 1 fd (make-epoll-event-out fd)))
-           ((read) (epoll-ctl epoll 1 fd (make-epoll-event-in fd)))
-           ;; Prepare for the future, in that case, FD is a <future>.
+           ((write)
+            (epoll-ctl epoll 1 fd (make-epoll-event-out fd))
+            (scheme:hash-table-set! waiting fd (make-event k mode)))
+           ((read)
+            (epoll-ctl epoll 1 fd (make-epoll-event-in fd))
+            (scheme:hash-table-set! waiting fd (make-event k mode)))
            ((future)
             (future-continuation! fd k)
-            (mutex-release (future-mutex fd)))
-           (else (error 'untangle "mode not supported" mode)))
-         (scheme:hash-table-set! waiting fd (make-event k mode)))))
+            (mutex-release (future-mutex fd))
+            (with-mutex %mutex
+                        (set! %future-waiting (fx+ %future-waiting 1))))
+           (else (error 'untangle "mode not supported" mode))))))
+
 
     (define (run-once epoll waiting)
       ;; Execute every callback waiting in queue.
@@ -167,9 +175,15 @@
             ((read) (epoll-ctl epoll 2 fd (make-epoll-event-in fd))))
           (spawn (event-continuation event)))))
 
-    (define (spawn thunk)
-      (with-mutex %mutex
-        (spawn thunk)))
+    (define spawn
+      (case-lambda
+       ((thunk)
+        (with-mutex %mutex
+                    (set! %queue (cons thunk %queue))))
+       ((thunk k)
+        (with-mutex %mutex
+                    (set! %queue (cons thunk %queue))
+                    (k)))))
 
     (define integer-comparator
       (make-comparator integer? = < number-hash))
@@ -179,7 +193,9 @@
             (waiting (scheme:make-hash-table integer-comparator)))
         (spawn thunk)
         (let loop ()
-          (unless (and (null? %queue) (scheme:hash-table-empty? waiting))
+          (unless (and (with-mutex %mutex (null? %queue))
+                       (scheme:hash-table-empty? waiting)
+                       (with-mutex %mutex (zero? %future-waiting)))
             (run-once epoll waiting)
             (loop)))))
 
