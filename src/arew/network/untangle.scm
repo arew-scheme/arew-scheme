@@ -244,9 +244,7 @@
           (if (= index count)
               ;; That is the end of the previous bytevector, read
               ;; something and return the first byte.
-              (let* ((bv* (make-bytevector 1024))
-                     (count* (read fd bv 0 1024)))
-                (set! bv bv*)
+              (let* ((count* (read fd bv 0 1024)))
                 (set! index 1)
                 (set! count count*)
                 (bytevector-u8-ref bv 0))
