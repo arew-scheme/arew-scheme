@@ -26,7 +26,9 @@
    fcntl!
    setsockopt
    listen
-   fd->port)
+   fd->port
+   socket-generator
+   socket-accumulator)
 
   (import (chezscheme)
           (only (scheme base) pk))
@@ -41,7 +43,7 @@
   ;; ffi helpers
 
   (define (make-double-pointer)
-      (foreign-alloc 8))
+    (foreign-alloc 8))
 
   (define-syntax-rule (alloc ftype)
     (make-ftype-pointer ftype (foreign-alloc (ftype-sizeof ftype))))
@@ -201,9 +203,9 @@
 
   (define (ipv4->string ip)
     (string-join (map number->string (list (bitwise-arithmetic-shift-right ip 24)
-                              (bitwise-and (bitwise-arithmetic-shift-right ip 16) #xff)
-                              (bitwise-and (bitwise-arithmetic-shift-right ip 8) #xff)
-                              (bitwise-and ip #xff)))
+                                           (bitwise-and (bitwise-arithmetic-shift-right ip 16) #xff)
+                                           (bitwise-and (bitwise-arithmetic-shift-right ip 8) #xff)
+                                           (bitwise-and ip #xff)))
                  "."))
 
   (define (sockaddr-in->alist pointer)
@@ -215,11 +217,11 @@
           (port . ,port)
           (ip . ,ip)))))
 
- (define (sockaddr->alist pointer)
-   (let ((family (int->address-family
-                  (ftype-ref %sockaddr
-                             (family)
-                             (make-ftype-pointer %sockaddr (ftype-pointer-address pointer))))))
+  (define (sockaddr->alist pointer)
+    (let ((family (int->address-family
+                   (ftype-ref %sockaddr
+                              (family)
+                              (make-ftype-pointer %sockaddr (ftype-pointer-address pointer))))))
       (case family
         ((inet)
          (sockaddr-in->alist pointer))
@@ -426,7 +428,6 @@
             (let ((out (foreign-ref 'void* out 0)))
               (let loop ((out* '())
                          (pointer out))
-
                 (if (= pointer 0)
                     (begin
                       (freeaddrinfo out)
@@ -515,15 +516,15 @@
 
   (define (sendto fd bytevector flags address)
     (call-with-lock bytevector
-                    (lambda ()
-                      (call-with-values (lambda () (%make-address address))
-                        (lambda (addr addrlen)
-                          (%sendto fd
-                                   (bytevector->pointer bytevector)
-                                   (bytevector-length bytevector)
-                                   (msg-flag->int flags)
-                                   addr
-                                   addrlen))))))
+      (lambda ()
+        (call-with-values (lambda () (%make-address address))
+          (lambda (addr addrlen)
+            (%sendto fd
+                     (bytevector->pointer bytevector)
+                     (bytevector-length bytevector)
+                     (msg-flag->int flags)
+                     addr
+                     addrlen))))))
 
   (define %accept
     (let ((func (foreign-procedure __collect_safe "accept" (int void* void*) int)))
@@ -588,5 +589,56 @@
      #f ;; set-position
      (lambda ()
        (close fd))))
+
+  (define (%read fd bv start n)
+    (lock-object bv)
+    (let* ((pointer (#%$object-address bv (+ (foreign-sizeof 'ptr) 1 start)))
+           (out (%recv fd pointer n 0)))
+      (if (fx=? out -1)
+          (let ((code (errno)))
+            (raise (list 'socket code (strerror code))))
+          (begin
+            (unlock-object bv)
+            out))))
+
+  (define (socket-generator fd)
+    ;; XXX: This is a generator, hence it is stateful.  It will keep
+    ;; trying to read until an error is raised.
+    (let* ((bv (make-bytevector 1024))
+           (index 0)
+           (count 0))
+      (lambda ()
+        (if (fx=? index count)
+            ;; That is the end of the previous bytevector, read
+            ;; something and return the first byte.
+            (let ((count* (%read fd bv 0 1024)))
+              (set! index 1)
+              (set! count count*)
+              (bytevector-u8-ref bv 0))
+            ;; The bytevector is not finished, increment and return
+            ;; a byte.
+            (let ((byte (bytevector-u8-ref bv index)))
+              (set! index (+ index 1))
+              byte)))))
+
+  (define (%write fd bv start n)
+    (lock-object bv)
+    (let* ((pointer (#%$object-address bv (+ (foreign-sizeof 'ptr) 1 start)))
+           (out (%send fd pointer n 0)))
+      (if (fx=? out -1)
+          (let ((code (errno)))
+            (raise (list 'socket code (strerror code))))
+          (begin (unlock-object bv)
+                 out))))
+
+  (define (socket-accumulator fd)
+    ;; There is no buffering.
+    (lambda (something)
+      (if (fixnum? something)
+          (%write fd (bytevector something) 0 1)
+          (let loop ((index 0))
+            (unless (fx=? index (bytevector-length something))
+              (let ((sent (%write fd something index (bytevector-length something))))
+                (loop (fx+ index sent))))))))
 
   )
