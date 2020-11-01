@@ -118,17 +118,14 @@
       (accumulator (string->utf8 string)))
 
     (define (http-request-line-write accumulator method uri version)
-      ;; method
-      (put-string accumulator method)
-      (accumulator (char->integer #\space))
-      ;; uri
-      (put-string accumulator uri)
-      (accumulator (char->integer #\space))
-      ;; version
-      (put-string accumulator " HTTP/")
-      (accumulator (car (string->list (number->string (car version)))))
-      (accumulator (char->integer #\.))
-      (accumulator (car (string->list (number->string (cdr version)))))
+      (put-string accumulator
+                  (string-append method
+                                 " "
+                                 uri
+                                 " HTTP/"
+                                 (number->string (car version))
+                                 "."
+                                 (number->string (cdr version))))
       ;; eol
       (put-string accumulator "\r\n"))
 
@@ -150,11 +147,11 @@
           (if minor
               (begin
                 (set! version (cons minor version))
-                (values #t (expected-read #\space status-code-read-one))
-                (raise (make-http-error "Invalid minor version" char))))))
+                (values #t (expected-read #\space status-code-read-one)))
+              (raise (make-http-error "Invalid minor version" char)))))
 
       (define (status-code-read-one char)
-        (let ((digit (string->number (list char))))
+        (let ((digit (string->number (list->string (list char)))))
           (if digit
               (begin
                 (set! status-code (cons char status-code))
@@ -171,7 +168,7 @@
                                                                                    major-version-read))))))
 
       (define (status-code-read-two char)
-        (let ((digit (string->number (list char))))
+        (let ((digit (string->number (list->string (list char)))))
           (if digit
               (begin
                 (set! status-code (cons char status-code))
@@ -179,7 +176,7 @@
               (raise (make-http-error "Invalid http status code digit" char)))))
 
       (define (status-code-read-three char)
-        (let ((digit (string->number (list char))))
+        (let ((digit (string->number (list->string (list char)))))
           (if digit
               (begin
                 (set! status-code (cons char status-code))
@@ -318,7 +315,7 @@
               (generator/continuation
                (gtake generator length)
                (lambda () (generator) (generator) (eof-object))))))
-      
+
       (lambda ()
         (set! chunk-length '())
         (set! chunk-extension '())
@@ -339,7 +336,7 @@
           (if (eof-object? out)
               (k)
               out))))
- 
+
     (define (http-chunked-body-generator generator)
 
       (define chunks)
@@ -438,7 +435,7 @@
       (call-with-values (lambda () (http-response-line-read generator))
         (lambda (version code reason)
           (let ((headers (http-headers-read generator)))
-            (values (version code reason headers (body-read headers generator)))))))
+            (values version code reason headers (body-read headers generator))))))
 
     (define (http-response-write accumulator version status-code reason headers body)
       (http-response-line-write accumulator version status-code reason)
