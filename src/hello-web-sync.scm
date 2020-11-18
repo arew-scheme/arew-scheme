@@ -7,10 +7,8 @@
 (define (handle socket)
   (let ((generator (socket-generator socket))
         (accumulator (socket-accumulator socket)))
-    (pk 'handle...)
     (call-with-values (lambda () (http-request-read generator))
       (lambda (method uri version headers body)
-        (pk 'write...)
         (http-response-write accumulator
                              '(1 . 1)
                              200
