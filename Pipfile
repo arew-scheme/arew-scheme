@@ -8,9 +8,11 @@ libzim = "*"
 warcio = "*"
 html2text = "*"
 cython = "*"
+wordfreq = "*"
 
 [dev-packages]
 debug = "*"
+ipython = "*"
 
 [requires]
 python_version = "3.9"
