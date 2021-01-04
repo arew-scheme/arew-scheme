@@ -435,7 +435,6 @@
   (let loop ()
     (call-with-values warc-record-reader
       (lambda (uri body)
-        (pk 'index)
         (%index db uri (generator->string body))))
     (wet-generator)
     (wet-generator)
