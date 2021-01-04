@@ -265,7 +265,11 @@
 (define (random-seed!)
   (random-seed (modulo (current-second) (expt 2 32))))
 
+(define counter 0)
+
 (define (%index db url string)
+  (define foobar (pk counter))
+  (define foobar2 (set! counter (fx+ counter 1)))
   (define uid (random-uid))
   (define bag (string->bag string))
   (define snippet (string->snippet string))
