@@ -25,6 +25,8 @@
 (define *df* #vu8(2)) ;; document frequency
 (define *backward* #vu8(2)) ;; document frequency
 
+(define default-comparator (make-default-comparator))
+
 (define (engine-open filename)
   (let ((db (okvslite-new)))
     (okvslite-config db 11 0) ;; no multiple process
@@ -80,10 +82,10 @@
 
 (define (engine-bag-ref db uid)
   (let ((bag (or (okvslite-ref db (pack *bag* uid)) (list "()"))))
-    (alist->bag (make-default-comparator) (string->scm (car bag)))))
+    (alist->bag default-comparator (string->scm (car bag)))))
 
 (define (engine-document-frequency! db bag)
-  (engine-bag-set! db #vu8(0) bag))
+  (engine-bag-update! db #vu8(0) bag))
 
 (define (engine-document-frequency db)
   (engine-bag-ref db #vu8(0)))
@@ -110,7 +112,7 @@
 
 ;; tokenize
 
-(define stopword (list->set (make-default-comparator)
+(define stopword (list->set default-comparator
                             (call-with-input-file "data/stopwords.txt"
                               (lambda (port)
                                 (let loop ((out '()))
@@ -171,7 +173,7 @@
 
   (define tokens (gremove stopword? (gfilter sane? (tokenize culture-generator**))))
 
-  (define bag (list->bag (make-default-comparator) (generator->list tokens)))
+  (define bag (list->bag default-comparator (generator->list tokens)))
 
   bag)
 
@@ -418,14 +420,6 @@
 (define wet-generator #f)
 
 (define (index db filename)
-  (define culture (call-with-input-file "data/Culture.md"
-                  (lambda (port)
-                    (let loop ((out '()))
-                      (let ((char (read-char port)))
-                        (if (eof-object? char)
-                            (list->string (reverse out))
-                            (loop (cons char out))))))))
-
   (define db (engine-open "db.okvslite"))
 
   (define x0 (set! wet-generator

@@ -78,7 +78,9 @@
 
 (define bag (list->bag (make-default-comparator) (generator->list tokens)))
 
+(define foo (pk (bag-size bag)))
+
 (define alist (sort (lambda (a b) (< (cdr a) (cdr b)))
                     (bag->alist bag)))
 
-(for-each pk alist)
+;; (for-each pk alist)
