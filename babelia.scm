@@ -29,12 +29,14 @@
 
 (define (engine-open filename)
   (let ((db (okvslite-new)))
+    (okvslite-config db 8 0) ;; no log
     (okvslite-config db 11 0) ;; no multiple process
     (okvslite-open db filename)
     db))
 
 (define (engine-open-read-only filename)
   (let ((db (okvslite-new)))
+    (okvslite-config db 8 0) ;; no log
     (okvslite-config db 11 0) ;; no multiple process
     (okvslite-config db 16 1) ;; readonly
     (okvslite-open db filename)
@@ -46,10 +48,13 @@
 (define (okvslite-ref db key)
   (let ((cursor (okvslite-cursor-open db)))
     (okvslite-cursor-seek cursor key 'equal)
-    (and (okvslite-cursor-valid? cursor)
-         (let ((out (unpack (okvslite-cursor-value cursor))))
-           (okvslite-cursor-close cursor)
-           out))))
+    (if (okvslite-cursor-valid? cursor)
+        (let ((out (unpack (okvslite-cursor-value cursor))))
+          (okvslite-cursor-close cursor)
+          out)
+        (begin
+          (okvslite-cursor-close cursor)
+          #f))))
 
 (define (engine-forward-ref db uid)
   (okvslite-ref db (pack *forward* uid)))
@@ -430,6 +435,7 @@
   (let loop ()
     (call-with-values warc-record-reader
       (lambda (uri body)
+        (pk 'index)
         (%index db uri (generator->string body))))
     (wet-generator)
     (wet-generator)
