@@ -23,7 +23,7 @@
 (define *forward* #vu8(0))
 (define *bag* #vu8(1))
 (define *df* #vu8(2)) ;; document frequency
-(define *backward* #vu8(2)) ;; document frequency
+(define *backward* #vu8(2)) ;; backward index, posting, aka. inverted index
 
 (define default-comparator (make-default-comparator))
 
@@ -265,11 +265,7 @@
 (define (random-seed!)
   (random-seed (modulo (current-second) (expt 2 32))))
 
-(define counter 0)
-
 (define (%index db url string)
-  (define foobar (pk counter))
-  (define foobar2 (set! counter (fx+ counter 1)))
   (define uid (random-uid))
   (define bag (string->bag string))
   (define snippet (string->snippet string))
@@ -317,7 +313,7 @@
 ;; WARC-Target-URI
 
 (define (warc-record-read generator)
-  ;; consume WARC/1.0
+  ;; consume the line WARC/1.0
   (generator-consume-line generator)
 
   (let ((headers (http-headers-read generator)))
@@ -458,7 +454,7 @@
   (define db (engine-open "db.okvslite"))
   (define df (engine-document-frequency db))
 
-  (define (lct tokens) ;; least frequent token
+  (define (lft tokens) ;; wanna be least frequent token
     (let loop ((tokens tokens)
                (out '()))
       (if (null? tokens)
@@ -468,7 +464,7 @@
           (loop (cdr tokens)
                 (cons (cons (car tokens) (bag-element-count df (car tokens))) out)))))
 
-  (define seed (pk 'seed (lct tokens)))
+  (define seed (pk 'seed (lft tokens)))
 
   (when seed
     (let ((candidates (engine-backward-ref db seed)))
