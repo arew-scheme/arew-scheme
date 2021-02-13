@@ -109,6 +109,7 @@
     (if (not (okvslite-cursor-valid? cursor))
         (fini!)
         (let* ((key* (okvslite-cursor-key cursor))
+               ;; comparison is done again KEY.
                (shift (compare key key*)))
           (cond
            ((fx=? shift 1) key*)
