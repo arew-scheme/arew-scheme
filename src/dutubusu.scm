@@ -77,6 +77,7 @@
                     -1
                     1)))))))
 
+;; TODO: go through the range in correct order!!
 (define (generator-range okvs key other)
   (define cursor (okvs-cursor-open okvs))
 
