@@ -90,6 +90,7 @@
         (let* ((key* (okvslite-cursor-key cursor))
                (shift (compare key* other)))
           (when (fx=? shift 0)
+            ;; the end of the range is excluded.
             (okvslite-cursor-prev cursor))
           (if (not (okvslite-cursor-valid? cursor))
               (fini!)
