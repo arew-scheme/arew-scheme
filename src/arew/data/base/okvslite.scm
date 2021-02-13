@@ -35,6 +35,7 @@
   (define (bytevector->pointer bv)
     (#%$object-address bv (+ (foreign-sizeof 'void*) 1)))
 
+  ;; TODO: take a list of objects.
   (define (call-with-lock obj thunk)
     (lock-object obj)
     (call-with-values thunk
