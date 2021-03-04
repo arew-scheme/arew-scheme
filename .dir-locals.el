@@ -4,6 +4,8 @@
 		 (eval . (progn
                            ;; okvs
                            (put 'with-output-language 'scheme-indent-function 1)
+                           (put 'guard 'scheme-indent-function 1)
+                           (put 'call-with-cursor 'scheme-indent-function 1)
                            (put 'nanopass-case 'scheme-indent-function 2)
                            (put 'okvs-in-transaction 'scheme-indent-function 2)
                            (put 'engine-in-transaction 'scheme-indent-function 2)

@@ -93,6 +93,7 @@
         (lambda (db)
           (check 'okvslite-close (proc db)))))
 
+    ;; TODO: replace with symbols
     (define okvslite-config
       (let ((proc (foreign-procedure* int "lsm_config" void* int void*)))
         (lambda (db config value)

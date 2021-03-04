@@ -1,3 +1,18 @@
+;;; Example use without using macros:
+;;
+;; (import (generic))
+;;
+;;
+;; (define abc (make-generic 'abc))
+;;
+;; (generic-add! abc (list number? number?) (lambda (next a b) (+ a b)))
+;;
+;; (generic-add! abc (list number? number?) (lambda (next a b) (+ a b)))
+;;
+;; (abc "42" "42") ;; => 84
+;;
+;; (abc 42 42) ;; => 84
+;;
 
 ;;> Define a new generic function named \var{name}.
 
@@ -6,15 +21,17 @@
     ((define-generic name)
      (define name (make-generic 'name)))))
 
-;; call-next-method needs to be unhygienic
-'(define-syntax define-method
-  (syntax-rules ()
-    ((define-method (name (param type) ...) . body)
-     (generic-add! name
-                   (list type ...)
-                   (lambda (next param ...)
-                     (let-syntax ((call))
-                       . body))))))
+;;
+;; XXX: call-next-method needs to be unhygienic
+;;
+;; (define-syntax define-method
+;;   (syntax-rules ()
+;;     ((define-method (name (param type) ...) . body)
+;;      (generic-add! name
+;;                    (list type ...)
+;;                    (lambda (next param ...)
+;;                      (let-syntax ((call))
+;;                        . body))))))
 
 ;;> \macro{(define-method (name params ...) body ...)}
 
@@ -24,27 +41,29 @@
 ;;> correct type.
 ;;> Parameters without a predicate will always match.
 
+;; TODO: re-implement without er-macro-transformer
+
 ;;> If multiple methods satisfy the arguments, the most recent method
 ;;> will be used.  The special form \scheme{(call-next-method)} can be
 ;;> invoked to call the next most recent method with the same arguments.
 
-(define-syntax define-method
-  (er-macro-transformer
-   (lambda (e r c)
-     (let ((name (car (cadr e)))
-           (params (map (lambda (param)
-                          (if (identifier? param)
-                              `(,param (lambda _ #t))
-                              param))
-                        (cdr (cadr e))))
-           (body (cddr e)))
-       `(,(r 'generic-add!) ,name
-         (,(r 'list) ,@(map cadr params))
-         (,(r 'lambda) (,(r 'next) ,@(map car params))
-          (,(r 'let-syntax) ((call-next-method
-                              (,(r 'syntax-rules) ()
-                               ((_) (,(r 'next))))))
-           ,@body)))))))
+;; (define-syntax define-method
+;;   (er-macro-transformer
+;;    (lambda (e r c)
+;;      (let ((name (car (cadr e)))
+;;            (params (map (lambda (param)
+;;                           (if (identifier? param)
+;;                               `(,param (lambda _ #t))
+;;                               param))
+;;                         (cdr (cadr e))))
+;;            (body (cddr e)))
+;;        `(,(r 'generic-add!) ,name
+;;          (,(r 'list) ,@(map cadr params))
+;;          (,(r 'lambda) (,(r 'next) ,@(map car params))
+;;           (,(r 'let-syntax) ((call-next-method
+;;                               (,(r 'syntax-rules) ()
+;;                                ((_) (,(r 'next))))))
+;;            ,@body)))))))
 
 (define (no-applicable-method-error name args)
   (error "no applicable method" name args))
@@ -80,7 +99,7 @@
              ((null? ls)
               (no-applicable-method-error name args))
              ((satisfied? (car (car ls)) args)
-              (apply (cdr (car ls)) (lambda () (lp (cdr ls))) args))
+              (apply (cadr (car ls)) (lambda () (lp (cdr ls))) args))
              (else
               (lp (cdr ls)))))))))))
 

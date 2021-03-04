@@ -22,8 +22,7 @@
   (let loop ((try 5) ;; magic number
              (ex #f))
     (if (zero? try)
-        (begin
-          (error 'okvs "transaction failed"))
+        (raise ex)
         (guard (ex
                 (else
                  (okvslite-rollback okvs 0)
@@ -55,9 +54,10 @@
   ;; lexicographic comparison
 
   ;; TODO: add a few fixnum calls
+  ;; TODO: replace with a macro
 
-  ;; Return -1 if BYTEVECTOR is before OTHER, 0 if equal,
-  ;; and return 1 if BYTEVECTOR is after OTHER
+  ;; If BYTEVECTOR is before OTHER return -1, if equal return 0,
+  ;; otherwise if BYTEVECTOR is after OTHER return 1
   (let ((end (min (bytevector-length bytevector)
                   (bytevector-length other))))
     (let loop ((index 0))
@@ -116,7 +116,6 @@
            ((fx=? shift 1) key*)
            ((fx=? shift 0) key*)
            ((fx=? shift -1) (fini!))))))
-
 
   (define yield init)
 
